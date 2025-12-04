@@ -19,6 +19,7 @@
             user-select: none; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f6f6f6;
+            overscroll-behavior-y: contain; /* Prevents native pull-to-refresh to use our custom one */
         }
         .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-pop { animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
@@ -52,9 +53,9 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.2.4";
-        // PASTE YOUR LOGO URL INSIDE THE QUOTES BELOW (e.g., "https://your-github.com/logo.png")
-        // Recommended size: 150x150px PNG with transparent background
+        const APP_VERSION = "v1.3.1";
+        // v1.3.0 - Instructions Update, Removed Shake
+        // v1.3.1 - Added Pull-to-Refresh, Fixed Button Contrast, Persistent Settings Check
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -78,7 +79,8 @@
             'leaf': <g><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></g>,
             'star': <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
             'utensils-cross': <g><path d="m16.1 19.3-2.4-2.4"/><path d="m9.3 12.5-2.4-2.4"/><path d="M11 6.5V2a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4.5a3 3 0 0 0 2.2 2.9l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3A3 3 0 0 0 11 6.5z"/><path d="m19 14.9-2.4-2.4"/><path d="M19 6.5a3 3 0 0 0-3-3h-.5a3 3 0 0 0-3 3v4.5a3 3 0 0 0 .8 2.2l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3a3 3 0 0 0 .8-2.2V6.5z"/></g>,
-            'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>
+            'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>,
+            'arrow-down': <g><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></g>
         };
 
         const Icon = ({ name, size=24, className }) => (
@@ -119,7 +121,8 @@
                 secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
                 accent: "bg-[#06C167] text-white shadow-lg shadow-green-500/20 hover:bg-green-600",
                 ghost: "bg-transparent text-gray-500 hover:text-gray-900",
-                yelp: "bg-[#FF1A1A] text-white shadow-lg shadow-red-500/20 hover:bg-red-600"
+                yelp: "bg-[#FF1A1A] text-white shadow-lg shadow-red-500/20 hover:bg-red-600",
+                white: "bg-white text-slate-900 shadow-lg hover:bg-gray-100 font-extrabold" // Stronger text color
             };
             return <button onClick={onClick} disabled={disabled} className={`${base} ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>{children}</button>;
         };
@@ -158,8 +161,14 @@
             const [statusMsg, setStatusMsg] = useState("");
             const [error, setError] = useState(null);
 
+            // --- PULL TO REFRESH STATE ---
+            const [pullY, setPullY] = useState(0);
+            const [startY, setStartY] = useState(0);
+            const containerRef = useRef(null);
+
             // --- LOGIC ---
             useEffect(() => {
+                // IMPORTANT: Keeping v2 keys to ensure settings are preserved across updates
                 const localMem = localStorage.getItem('dinner_members_v2');
                 const localHist = localStorage.getItem('dinner_history_v2');
                 if (localMem) {
@@ -179,6 +188,31 @@
 
             useEffect(() => { localStorage.setItem('dinner_members_v2', JSON.stringify(members)); }, [members]);
             useEffect(() => { localStorage.setItem('dinner_history_v2', JSON.stringify(history)); }, [history]);
+
+            // --- PULL TO REFRESH LOGIC ---
+            const handleTouchStart = (e) => {
+                if (containerRef.current && containerRef.current.scrollTop === 0) {
+                    setStartY(e.touches[0].clientY);
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                if (startY === 0) return;
+                const currentY = e.touches[0].clientY;
+                const diff = currentY - startY;
+                
+                if (diff > 0 && diff < 200) {
+                    setPullY(diff);
+                }
+            };
+
+            const handleTouchEnd = () => {
+                if (pullY > 100) {
+                    window.location.reload(); // Hard refresh
+                }
+                setPullY(0);
+                setStartY(0);
+            };
 
             const fetchRestaurants = async () => {
                 if (!userLocation) return;
@@ -223,8 +257,6 @@
                 const activeProfiles = members.filter(m => activeMembers.includes(m.id));
                 const restrictions = activeProfiles.flatMap(m => m.restrictions);
 
-                // --- SMART FILTERING LOGIC ---
-                
                 // 1. VEGETARIAN LOGIC
                 if (restrictions.includes("Vegetarian")) {
                     const scoredPool = pool.filter(p => {
@@ -275,11 +307,10 @@
                     if (gfFriendly.length > 0) pool = gfFriendly;
                 }
 
-                if (pool.length === 0) pool = list; // Fallback
+                if (pool.length === 0) pool = list; 
                 
                 const winner = pool[Math.floor(Math.random() * pool.length)];
                 
-                // Determine Badges
                 const badges = [];
                 if (['yes', 'only'].includes(winner.tags['diet:vegetarian']) || ['indian', 'thai'].includes(winner.cuisine)) {
                     badges.push("Vegetarian Friendly");
@@ -300,47 +331,12 @@
                 setView('result');
             };
 
-            useEffect(() => {
-                if (view !== 'result') return;
-                
-                let lastX=0, lastY=0, lastZ=0;
-                let lastTime = 0;
-                let lastShakeTime = 0;
-
-                const handleShake = (e) => {
-                    if (!e.accelerationIncludingGravity) return;
-
-                    const now = Date.now();
-                    if ((now - lastTime) > 100) {
-                        const diffTime = now - lastTime;
-                        lastTime = now;
-                        
-                        const {x,y,z} = e.accelerationIncludingGravity;
-                        const speed = Math.abs(x + y + z - lastX - lastY - lastZ) / diffTime * 10000;
-
-                        if (speed > 50 && (now - lastShakeTime > 1500)) {
-                            lastShakeTime = now;
-                            if (navigator.vibrate) navigator.vibrate(200);
-                            fetchRestaurants(); 
-                        }
-                        
-                        lastX = x;
-                        lastY = y;
-                        lastZ = z;
-                    }
-                };
-
-                window.addEventListener('devicemotion', handleShake);
-                return () => window.removeEventListener('devicemotion', handleShake);
-            }, [view]);
-
             const handleExport = async () => {
                 const d = btoa(JSON.stringify({members, history}));
                 if (navigator.share) {
                     try {
                         await navigator.share({ title: 'Meal Mediator Data', text: d });
                     } catch (err) {
-                        console.log("Share failed, falling back");
                         prompt("Copy this code:", d);
                     }
                 } else if (navigator.clipboard) {
@@ -375,7 +371,7 @@
 
             const HomeView = () => (
                 <div className="flex flex-col h-full bg-[#f6f6f6]">
-                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-10">
+                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-10 shadow-sm">
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <div className="flex items-center gap-1 text-[#06C167] font-medium text-xs uppercase tracking-wide mb-1">
@@ -405,10 +401,25 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-6 py-6 pb-32">
+                    <div 
+                        ref={containerRef}
+                        className="flex-1 overflow-y-auto px-6 py-6 pb-32 relative"
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                    >
+                        {/* Refresh Indicator */}
+                        {pullY > 0 && (
+                            <div className="flex justify-center items-center h-10 w-full absolute top-0 left-0 transition-transform" style={{transform: `translateY(${pullY * 0.4}px)`}}>
+                                <div className="bg-white rounded-full p-2 shadow-lg">
+                                    <Icon name="refresh" className={`text-[#06C167] ${pullY > 100 ? 'animate-spin' : ''}`} />
+                                </div>
+                            </div>
+                        )}
+
                         {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium mb-6 text-center">{error}</div>}
 
-                        <div className="mb-8">
+                        <div className="mb-8" style={{transform: pullY > 0 ? `translateY(${pullY * 0.3}px)` : 'none', transition: 'transform 0.1s'}}>
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold">Who's Hungry?</h2>
                                 <button onClick={() => setView('setup')} className="text-[#06C167] text-sm font-semibold">Edit</button>
@@ -438,13 +449,13 @@
                         </div>
 
                         {activeMembers.length > 0 && (
-                            <div className="animate-pop bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden">
+                            <div className="animate-pop bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden" style={{transform: pullY > 0 ? `translateY(${pullY * 0.3}px)` : 'none'}}>
                                  <div className="absolute top-0 right-0 opacity-10 transform translate-x-4 -translate-y-4">
                                     <Icon name="search" size={120} />
                                  </div>
                                  <h3 className="text-2xl font-bold mb-2 relative z-10">Find Food</h3>
                                  <p className="opacity-90 text-sm mb-6 relative z-10 max-w-[200px]">We'll scan nearby restaurants and pick the best one for everyone.</p>
-                                 <Button onClick={fetchRestaurants} disabled={loading} variant="primary" className="bg-white text-black hover:bg-gray-100 relative z-10">
+                                 <Button onClick={fetchRestaurants} disabled={loading} variant="white" className="relative z-10">
                                     {loading ? statusMsg : "Start Searching"}
                                  </Button>
                             </div>
@@ -472,7 +483,8 @@
                                 <li>On the <strong>Home</strong> screen, tap the people who are eating to select them (they turn black).</li>
                                 <li>Adjust the <strong>Distance</strong> slider to how far you want to drive.</li>
                                 <li>Tap <strong>Start Searching</strong>. The app will find restaurants that match everyone's needs.</li>
-                                <li>Don't like the choice? <strong>Shake your phone</strong> or tap Shuffle to get a new one!</li>
+                                <li>Don't like the choice? Tap <strong>Shuffle</strong> to get a new one!</li>
+                                <li><strong>Refresh:</strong> Pull down on the home screen to refresh the app and clear any glitches.</li>
                             </ol>
                         </section>
 
@@ -549,7 +561,7 @@
                                 Let's Go
                             </Button>
                             <Button onClick={fetchRestaurants} variant="secondary">
-                                <Icon name="refresh" size={18} /> Shuffle / Shake
+                                <Icon name="refresh" size={18} /> Shuffle
                             </Button>
                         </div>
                     </div>
