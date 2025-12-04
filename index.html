@@ -53,13 +53,13 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.5.0";
-        // v1.3.6 - Added Fairness Algorithm
-        // v1.3.7 - Manual Picker Selection
+        const APP_VERSION = "v1.6.1";
         // v1.4.0 - Added Blacklist Feature
         // v1.4.1 - Swipe-to-Back Support
         // v1.4.2 - Enhanced Sync
         // v1.5.0 - Renamed to "AwwHellNaw List" & Added Ability to Remove Blocked Items
+        // v1.6.0 - Added Love/Favorites feature, moved Block button to header area
+        // v1.6.1 - Added Location Services instructions to Help
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -86,7 +86,8 @@
             'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>,
             'arrow-down': <g><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></g>,
             'crown': <g><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></g>,
-            'ban': <g><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></g>
+            'ban': <g><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></g>,
+            'heart': <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
         };
 
         const Icon = ({ name, size=24, className }) => (
@@ -172,8 +173,9 @@
             const [rejectedIds, setRejectedIds] = useState([]);
             const [showPickerModal, setShowPickerModal] = useState(false);
             
-            // Blacklist State (Stores objects: {id, name})
+            // Blacklist & Love List State (Stores objects: {id, name})
             const [blacklist, setBlacklist] = useState([]);
+            const [loveList, setLoveList] = useState([]);
 
             // --- PULL TO REFRESH STATE ---
             const [pullY, setPullY] = useState(0);
@@ -217,6 +219,7 @@
                 const localMem = localStorage.getItem('dinner_members_v2');
                 const localHist = localStorage.getItem('dinner_history_v2');
                 const localBlacklist = localStorage.getItem('dinner_blacklist_v2');
+                const localLoveList = localStorage.getItem('dinner_lovelist_v2');
                 
                 if (localMem) {
                     const parsed = JSON.parse(localMem);
@@ -225,6 +228,7 @@
                 }
                 if (localHist) setHistory(JSON.parse(localHist));
                 if (localBlacklist) setBlacklist(JSON.parse(localBlacklist));
+                if (localLoveList) setLoveList(JSON.parse(localLoveList));
 
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -237,6 +241,7 @@
             useEffect(() => { localStorage.setItem('dinner_members_v2', JSON.stringify(members)); }, [members]);
             useEffect(() => { localStorage.setItem('dinner_history_v2', JSON.stringify(history)); }, [history]);
             useEffect(() => { localStorage.setItem('dinner_blacklist_v2', JSON.stringify(blacklist)); }, [blacklist]);
+            useEffect(() => { localStorage.setItem('dinner_lovelist_v2', JSON.stringify(loveList)); }, [loveList]);
 
             // --- PULL TO REFRESH LOGIC ---
             const handleTouchStart = (e) => {
@@ -297,6 +302,26 @@
                 const newList = [...blacklist];
                 newList.splice(index, 1);
                 setBlacklist(newList);
+            };
+
+            const toggleLove = () => {
+                if (!currentPick) return;
+                
+                const isLoved = loveList.some(item => (typeof item === 'string' ? item === currentPick.id : item.id === currentPick.id));
+                
+                if (isLoved) {
+                    // Remove
+                    setLoveList(loveList.filter(item => (typeof item === 'string' ? item !== currentPick.id : item.id !== currentPick.id)));
+                } else {
+                    // Add
+                    setLoveList([...loveList, { id: currentPick.id, name: currentPick.name }]);
+                }
+            };
+
+            const removeLove = (index) => {
+                const newList = [...loveList];
+                newList.splice(index, 1);
+                setLoveList(newList);
             };
 
             const fetchRestaurants = async () => {
@@ -444,7 +469,7 @@
             };
 
             const handleExport = async () => {
-                const d = btoa(JSON.stringify({members, history, blacklist}));
+                const d = btoa(JSON.stringify({members, history, blacklist, loveList}));
                 if (navigator.share) {
                     try {
                         await navigator.share({ title: 'Meal Mediator Data', text: d });
@@ -468,6 +493,7 @@
                         setMembers(j.members || []);
                         setHistory(j.history || []);
                         if (j.blacklist) setBlacklist(j.blacklist); 
+                        if (j.loveList) setLoveList(j.loveList);
                         alert("Synced!");
                         window.location.reload(); 
                     } catch(e) { alert("Invalid code."); }
@@ -624,9 +650,22 @@
                                 <li>Adjust the <strong>Distance</strong> slider to how far you want to drive.</li>
                                 <li>Tap <strong>Start Searching</strong>. The app will find restaurants that match everyone's needs.</li>
                                 <li>Don't like the choice? Tap <strong>Shuffle</strong> to get a new one! We won't show the same place twice until you've seen them all.</li>
-                                <li><strong>Hate a place?</strong> Click "Add to AwwHellNaw List" on the result screen to blacklist it forever.</li>
+                                <li><strong>Hate a place?</strong> Click the <Icon name="ban" size={12} className="inline"/> icon next to the restaurant name to block it forever.</li>
+                                <li><strong>Love a place?</strong> Click the <Icon name="heart" size={12} className="inline"/> icon next to the restaurant name to save it to your Favorites.</li>
                                 <li><strong>Refresh:</strong> Pull down on the home screen to refresh the app and clear any glitches.</li>
                             </ol>
+                        </section>
+
+                        <section className="bg-white p-5 rounded-2xl shadow-sm">
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="map-pin" size={18} className="text-[#06C167]"/> Enable Location Services</h3>
+                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                                If the app cannot find your location, please enable permissions for your browser:
+                            </p>
+                            <ul className="list-disc pl-4 text-sm text-gray-600 space-y-2 mb-3">
+                                <li><strong>iPhone (iOS):</strong> Go to <em>Settings > Privacy & Security > Location Services</em>. Find Safari (or Chrome) and ensure it is set to "While Using the App".</li>
+                                <li><strong>Android:</strong> Go to <em>Settings > Location > App permissions</em>. Find Chrome (or your browser) and select "Allow only while using the app".</li>
+                                <li><strong>General:</strong> Ensure your phone's main GPS toggle is turned ON.</li>
+                            </ul>
                         </section>
 
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
@@ -646,7 +685,7 @@
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="share" size={18} className="text-[#06C167]"/> Syncing Data</h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
-                                To share your setup with another phone, click the <strong>Share</strong> icon on the Home screen to copy your data code. Send this code to family members, and they can use the <strong>Download</strong> icon to import it. <strong>Note:</strong> Your AwwHellNaw List is included in the sync.
+                                To share your setup with another phone, click the <strong>Share</strong> icon on the Home screen to copy your data code. Send this code to family members, and they can use the <strong>Download</strong> icon to import it. <strong>Note:</strong> Your AwwHellNaw List and Loved Places are included in the sync.
                             </p>
                         </section>
 
@@ -661,6 +700,7 @@
 
             const ResultView = () => {
                 const suggestedPicker = getSuggestedPickerName();
+                const isLoved = currentPick && loveList.some(item => (typeof item === 'string' ? item === currentPick.id : item.id === currentPick.id));
 
                 return (
                     <div className="min-h-screen bg-white flex flex-col animate-slide-up relative z-50 pb-10">
@@ -673,10 +713,26 @@
                             </div>
                         </div>
                         <div className="flex-1 px-6 pt-14 pb-6 flex flex-col overflow-y-auto">
-                            <div className="mb-1">
-                                <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex-1 pr-2">
+                                    <div className="mb-1 text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</div>
+                                    <h2 className="text-3xl font-extrabold text-black leading-tight">{currentPick?.name}</h2>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                    <button 
+                                        onClick={toggleLove} 
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm border transition-colors ${isLoved ? 'bg-red-50 border-red-200 text-red-500' : 'bg-white border-gray-100 text-gray-400 hover:text-red-400'}`}
+                                    >
+                                        <Icon name="heart" className={isLoved ? "fill-current" : ""} />
+                                    </button>
+                                    <button 
+                                        onClick={blockRestaurant} 
+                                        className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                        <Icon name="ban" />
+                                    </button>
+                                </div>
                             </div>
-                            <h2 className="text-4xl font-extrabold text-black mb-2 leading-tight">{currentPick?.name}</h2>
                             
                             <div className="flex flex-wrap gap-2 mb-6">
                                 <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wide">
@@ -689,7 +745,7 @@
                                 ))}
                             </div>
 
-                            <div className="space-y-4 mt-6">
+                            <div className="space-y-4 mt-2">
                                 <div className="grid grid-cols-2 gap-3">
                                     <a href={currentPick?.googleUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center">
                                         <Icon name="search" size={24} className="text-blue-500 mb-1" />
@@ -707,13 +763,6 @@
                                 <Button onClick={handleShuffle} variant="secondary">
                                     <Icon name="refresh" size={18} /> Shuffle
                                 </Button>
-                                
-                                <button 
-                                    onClick={blockRestaurant} 
-                                    className="w-full py-2 flex items-center justify-center gap-2 text-red-400 text-xs font-bold hover:text-red-600 transition-colors mt-2"
-                                >
-                                    <Icon name="ban" size={14} /> Add to AwwHellNaw List
-                                </button>
                             </div>
                         </div>
 
@@ -809,18 +858,40 @@
 
                             <div className="mt-8 pt-6 border-t border-gray-200">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-500">
+                                    <Icon name="heart" size={20} className="fill-current"/> Loved Places
+                                </h3>
+                                {loveList.length === 0 && <p className="text-sm text-gray-400 italic text-center py-4">No favorites saved yet.</p>}
+                                <div className="space-y-2">
+                                    {loveList.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-red-50">
+                                            <span className="font-medium text-sm text-gray-700 truncate flex-1 pr-2">
+                                                {typeof item === 'object' ? item.name : 'Legacy Favorite'}
+                                            </span>
+                                            <button 
+                                                onClick={() => removeLove(idx)} 
+                                                className="text-xs font-bold text-red-400 hover:text-red-600 px-3 py-1 bg-red-50 rounded-full"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mt-8 pt-6 border-t border-gray-200">
+                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-gray-500">
                                     <Icon name="ban" size={20} /> AwwHellNaw List
                                 </h3>
                                 {blacklist.length === 0 && <p className="text-sm text-gray-400 italic text-center py-4">No places blocked yet.</p>}
                                 <div className="space-y-2">
                                     {blacklist.map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-red-50">
+                                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-200">
                                             <span className="font-medium text-sm text-gray-700 truncate flex-1 pr-2">
                                                 {typeof item === 'object' ? item.name : 'Unknown Place (Legacy)'}
                                             </span>
                                             <button 
                                                 onClick={() => removeBlock(idx)} 
-                                                className="text-xs font-bold text-red-400 hover:text-red-600 px-3 py-1 bg-red-50 rounded-full"
+                                                className="text-xs font-bold text-gray-400 hover:text-gray-600 px-3 py-1 bg-gray-100 rounded-full"
                                             >
                                                 Remove
                                             </button>
