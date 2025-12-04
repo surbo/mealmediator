@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,7 +21,7 @@
             background-color: #f6f6f6;
         }
         .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .animate-pop { animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-pop { animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         
@@ -52,13 +51,12 @@
     <div id="root" class="h-full w-full"></div>
 
     <script type="text/babel">
-        // --- VERSION CONTROL ---
-        const APP_VERSION = "v1.1.0";
-        // v1.0.0 - Initial Release
-        // v1.1.0 - Added Help Screen, Security Info, Version Tracking, Renamed to Meal Mediator
+        // --- CONFIGURATION ---
+        const APP_VERSION = "v1.2.4";
+        // PASTE YOUR LOGO URL INSIDE THE QUOTES BELOW (e.g., "https://your-github.com/logo.png")
+        // Recommended size: 150x150px PNG with transparent background
+        const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
-        const { useState, useEffect, useRef } = React;
-        
         // --- ICONS ---
         const ICONS = {
             'home': <g><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></g>,
@@ -76,7 +74,11 @@
             'x': <g><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></g>,
             'map-pin': <g><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></g>,
             'help': <g><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></g>,
-            'shield': <g><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></g>
+            'shield': <g><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></g>,
+            'leaf': <g><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></g>,
+            'star': <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
+            'utensils-cross': <g><path d="m16.1 19.3-2.4-2.4"/><path d="m9.3 12.5-2.4-2.4"/><path d="M11 6.5V2a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4.5a3 3 0 0 0 2.2 2.9l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3A3 3 0 0 0 11 6.5z"/><path d="m19 14.9-2.4-2.4"/><path d="M19 6.5a3 3 0 0 0-3-3h-.5a3 3 0 0 0-3 3v4.5a3 3 0 0 0 .8 2.2l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3a3 3 0 0 0 .8-2.2V6.5z"/></g>,
+            'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>
         };
 
         const Icon = ({ name, size=24, className }) => (
@@ -85,7 +87,30 @@
             </svg>
         );
 
+        const { useState, useEffect, useRef } = React;
+
         // --- COMPONENTS ---
+
+        const Logo = ({ className }) => (
+            <div className={`flex items-center gap-2 ${className}`}>
+                {LOGO_URL ? (
+                    <img src={LOGO_URL} alt="Meal Mediator Logo" className="w-12 h-12 object-contain rounded-xl shadow-md bg-white" />
+                ) : (
+                    <div className="w-12 h-12 bg-black rounded-2xl flex flex-col items-center justify-center relative shadow-md p-1">
+                        <div className="text-[#06C167] -mb-1">
+                            <Icon name="utensils-cross" size={20} />
+                        </div>
+                        <div className="text-[#06C167]">
+                            <Icon name="handshake" size={16} />
+                        </div>
+                    </div>
+                )}
+                <div className="flex flex-col">
+                    <span className="font-extrabold text-xl leading-none tracking-tight">Meal</span>
+                    <span className="font-extrabold text-xl leading-none tracking-tight text-[#06C167]">Mediator</span>
+                </div>
+            </div>
+        );
 
         const Button = ({ onClick, children, variant = 'primary', className = '', disabled=false }) => {
             const base = "w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200";
@@ -93,7 +118,8 @@
                 primary: "bg-black text-white shadow-lg shadow-black/20 hover:bg-gray-900", 
                 secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
                 accent: "bg-[#06C167] text-white shadow-lg shadow-green-500/20 hover:bg-green-600",
-                ghost: "bg-transparent text-gray-500 hover:text-gray-900"
+                ghost: "bg-transparent text-gray-500 hover:text-gray-900",
+                yelp: "bg-[#FF1A1A] text-white shadow-lg shadow-red-500/20 hover:bg-red-600"
             };
             return <button onClick={onClick} disabled={disabled} className={`${base} ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>{children}</button>;
         };
@@ -181,6 +207,7 @@
                             id: el.id,
                             name: el.tags.name,
                             cuisine: el.tags.cuisine || "General",
+                            tags: el.tags, 
                             lat: el.lat,
                             lon: el.lon
                         }));
@@ -196,41 +223,135 @@
                 const activeProfiles = members.filter(m => activeMembers.includes(m.id));
                 const restrictions = activeProfiles.flatMap(m => m.restrictions);
 
-                if (restrictions.includes("Vegetarian")) pool = pool.filter(p => !['steak_house', 'bbq'].includes(p.cuisine));
-                if (pool.length === 0) pool = list; 
+                // --- SMART FILTERING LOGIC ---
+                
+                // 1. VEGETARIAN LOGIC
+                if (restrictions.includes("Vegetarian")) {
+                    const scoredPool = pool.filter(p => {
+                        const isMeatPlace = ['steak_house', 'bbq', 'kebab', 'burger'].includes(p.cuisine);
+                        const explicitNo = p.tags['diet:vegetarian'] === 'no';
+                        if (isMeatPlace || explicitNo) return false;
+                        return true;
+                    });
+                    
+                    const vegFriendly = scoredPool.filter(p => {
+                        const explicitYes = ['yes', 'only'].includes(p.tags['diet:vegetarian']);
+                        const safeCuisine = ['indian', 'thai', 'italian', 'mexican', 'chinese', 'japanese', 'vietnamese', 'lebanese'].includes(p.cuisine);
+                        return explicitYes || safeCuisine;
+                    });
+
+                    if (vegFriendly.length > 0) pool = vegFriendly;
+                    else if (scoredPool.length > 0) pool = scoredPool;
+                }
+
+                // 2. VEGAN LOGIC
+                if (restrictions.includes("Vegan")) {
+                    const scoredPool = pool.filter(p => {
+                        const isMeatPlace = ['steak_house', 'bbq', 'kebab', 'burger'].includes(p.cuisine);
+                        const explicitNo = p.tags['diet:vegan'] === 'no';
+                        if (isMeatPlace || explicitNo) return false;
+                        return true;
+                    });
+
+                    const veganFriendly = scoredPool.filter(p => {
+                        const explicitYes = ['yes', 'only'].includes(p.tags['diet:vegan']);
+                        const safeCuisine = ['indian', 'thai', 'vietnamese', 'lebanese'].includes(p.cuisine);
+                        return explicitYes || safeCuisine;
+                    });
+                    
+                    if (veganFriendly.length > 0) pool = veganFriendly;
+                    else if (scoredPool.length > 0) pool = scoredPool;
+                }
+
+                // 3. GLUTEN FREE LOGIC
+                if (restrictions.includes("Gluten-Free")) {
+                     const gfFriendly = pool.filter(p => {
+                        const explicitYes = ['yes', 'only'].includes(p.tags['diet:gluten_free']);
+                        const safeCuisine = ['mexican', 'thai', 'vietnamese', 'japanese', 'sushi'].includes(p.cuisine);
+                        const risky = ['pizza', 'italian', 'bakery', 'sandwich'].includes(p.cuisine);
+                        return explicitYes || (safeCuisine && !risky);
+                    });
+                    
+                    if (gfFriendly.length > 0) pool = gfFriendly;
+                }
+
+                if (pool.length === 0) pool = list; // Fallback
                 
                 const winner = pool[Math.floor(Math.random() * pool.length)];
+                
+                // Determine Badges
+                const badges = [];
+                if (['yes', 'only'].includes(winner.tags['diet:vegetarian']) || ['indian', 'thai'].includes(winner.cuisine)) {
+                    badges.push("Vegetarian Friendly");
+                }
+                if (['yes', 'only'].includes(winner.tags['diet:vegan'])) {
+                    badges.push("Vegan Options");
+                }
+                if (['yes', 'only'].includes(winner.tags['diet:gluten_free'])) {
+                    badges.push("Gluten-Free Options");
+                }
+
                 const query = encodeURIComponent(`${winner.name} restaurant near me`);
                 const googleUrl = `https://www.google.com/search?q=${query}`;
+                const yelpUrl = `https://www.yelp.com/search?find_desc=${encodeURIComponent(winner.name)}&find_loc=${userLocation.lat},${userLocation.lng}`;
 
-                setCurrentPick({ ...winner, googleUrl });
+                setCurrentPick({ ...winner, googleUrl, yelpUrl, badges });
                 setLoading(false);
                 setView('result');
             };
 
             useEffect(() => {
                 if (view !== 'result') return;
-                let lastX=0, lastY=0, lastZ=0, lastTime=0;
+                
+                let lastX=0, lastY=0, lastZ=0;
+                let lastTime = 0;
+                let lastShakeTime = 0;
+
                 const handleShake = (e) => {
-                    const {x,y,z} = e.accelerationIncludingGravity || {};
-                    if(!x) return;
+                    if (!e.accelerationIncludingGravity) return;
+
                     const now = Date.now();
                     if ((now - lastTime) > 100) {
-                        const speed = Math.abs(x+y+z - lastX-lastY-lastZ) / (now - lastTime) * 10000;
-                        if (speed > 25) fetchRestaurants(); 
-                        lastTime = now; lastX=x; lastY=y; lastZ=z;
+                        const diffTime = now - lastTime;
+                        lastTime = now;
+                        
+                        const {x,y,z} = e.accelerationIncludingGravity;
+                        const speed = Math.abs(x + y + z - lastX - lastY - lastZ) / diffTime * 10000;
+
+                        if (speed > 50 && (now - lastShakeTime > 1500)) {
+                            lastShakeTime = now;
+                            if (navigator.vibrate) navigator.vibrate(200);
+                            fetchRestaurants(); 
+                        }
+                        
+                        lastX = x;
+                        lastY = y;
+                        lastZ = z;
                     }
                 };
-                if (window.DeviceMotionEvent) window.addEventListener('devicemotion', handleShake);
-                return () => { if (window.DeviceMotionEvent) window.removeEventListener('devicemotion', handleShake); }
+
+                window.addEventListener('devicemotion', handleShake);
+                return () => window.removeEventListener('devicemotion', handleShake);
             }, [view]);
 
-            const handleExport = () => {
+            const handleExport = async () => {
                 const d = btoa(JSON.stringify({members, history}));
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(d).then(() => alert("Settings copied! Send to family.")).catch(()=>prompt("Copy this:", d));
-                } else prompt("Copy this:", d);
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: 'Meal Mediator Data', text: d });
+                    } catch (err) {
+                        console.log("Share failed, falling back");
+                        prompt("Copy this code:", d);
+                    }
+                } else if (navigator.clipboard) {
+                    navigator.clipboard.writeText(d)
+                        .then(() => alert("Settings copied! Send to family."))
+                        .catch(() => prompt("Copy this:", d));
+                } else {
+                    prompt("Copy this:", d);
+                }
             };
+
             const handleImport = () => {
                 const d = prompt("Paste settings code:");
                 if(d) {
@@ -261,7 +382,7 @@
                                     <Icon name="map-pin" size={12} />
                                     <span>Current Location</span>
                                 </div>
-                                <h1 className="text-3xl font-extrabold text-black tracking-tight leading-none">Meal<br/>Mediator</h1>
+                                <Logo />
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setView('help')} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:bg-gray-800 shadow-md"><Icon name="help" size={18}/></button>
@@ -292,7 +413,7 @@
                                 <h2 className="text-lg font-bold">Who's Hungry?</h2>
                                 <button onClick={() => setView('setup')} className="text-[#06C167] text-sm font-semibold">Edit</button>
                             </div>
-                            <div className="flex gap-3 overflow-x-auto hide-scroll pb-2">
+                            <div className="flex gap-2 overflow-x-auto hide-scroll pb-2">
                                 {members.length === 0 && (
                                     <button onClick={() => setView('setup')} className="flex-shrink-0 px-4 py-8 bg-white border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 text-sm font-medium flex flex-col items-center gap-2 w-32">
                                         <Icon name="plus" /> Add Person
@@ -304,28 +425,30 @@
                                         <button 
                                             key={m.id} 
                                             onClick={() => setActiveMembers(prev => prev.includes(m.id)?prev.filter(i=>i!==m.id):[...prev, m.id])}
-                                            className={`flex-shrink-0 px-5 py-6 rounded-2xl flex flex-col items-center gap-2 min-w-[100px] transition-all duration-300 ${isActive ? 'bg-black text-white shadow-xl scale-105' : 'bg-white text-gray-500 shadow-sm'}`}
+                                            className={`flex-shrink-0 px-2 py-3 rounded-xl flex flex-col items-center gap-1 min-w-[75px] w-20 transition-all duration-300 ${isActive ? 'bg-black text-white shadow-xl scale-105' : 'bg-white text-gray-500 shadow-sm'}`}
                                         >
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isActive ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                                <span className="font-bold text-sm">{m.name.charAt(0)}</span>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                                                <span className="font-bold text-xs">{m.name.charAt(0)}</span>
                                             </div>
-                                            <span className="font-semibold text-sm">{m.name}</span>
+                                            <span className="font-semibold text-xs truncate w-full text-center px-1">{m.name}</span>
                                         </button>
                                     )
                                 })}
                             </div>
                         </div>
 
-                        <div className="bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden">
-                             <div className="absolute top-0 right-0 opacity-10 transform translate-x-4 -translate-y-4">
-                                <Icon name="search" size={120} />
-                             </div>
-                             <h3 className="text-2xl font-bold mb-2 relative z-10">Find Food</h3>
-                             <p className="opacity-90 text-sm mb-6 relative z-10 max-w-[200px]">We'll scan nearby restaurants and pick the best one for everyone.</p>
-                             <Button onClick={fetchRestaurants} disabled={loading || activeMembers.length === 0} variant="primary" className="bg-white text-black hover:bg-gray-100 relative z-10">
-                                {loading ? statusMsg : "Start Searching"}
-                             </Button>
-                        </div>
+                        {activeMembers.length > 0 && (
+                            <div className="animate-pop bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden">
+                                 <div className="absolute top-0 right-0 opacity-10 transform translate-x-4 -translate-y-4">
+                                    <Icon name="search" size={120} />
+                                 </div>
+                                 <h3 className="text-2xl font-bold mb-2 relative z-10">Find Food</h3>
+                                 <p className="opacity-90 text-sm mb-6 relative z-10 max-w-[200px]">We'll scan nearby restaurants and pick the best one for everyone.</p>
+                                 <Button onClick={fetchRestaurants} disabled={loading} variant="primary" className="bg-white text-black hover:bg-gray-100 relative z-10">
+                                    {loading ? statusMsg : "Start Searching"}
+                                 </Button>
+                            </div>
+                        )}
                         
                         <div className="text-center mt-8 text-xs text-gray-300 font-medium">
                             {APP_VERSION}
@@ -354,15 +477,17 @@
                         </section>
 
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
-                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="shield" size={18} className="text-[#06C167]"/> Security & Privacy</h3>
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="shield" size={18} className="text-[#06C167]"/> Smart Dietary Filters</h3>
                             <p className="text-sm text-gray-600 leading-relaxed mb-3">
-                                <strong>Your data stays with you.</strong> Meal Mediator is a client-side application. This means:
+                                <strong>How we find matches:</strong> We use the <strong>OpenStreetMap</strong> database to analyze restaurants in real-time. Our algorithm uses a two-layer system to match diets like Vegan or Gluten-Free:
                             </p>
-                            <ul className="list-disc pl-4 text-sm text-gray-600 space-y-2">
-                                <li>All family names and dining history are stored in your device's <strong>Local Storage</strong>.</li>
-                                <li>We do not have a database server. We cannot see your data.</li>
-                                <li>Your GPS location is sent anonymously to the OpenStreetMap API solely to find nearby restaurants.</li>
+                            <ul className="list-disc pl-4 text-sm text-gray-600 space-y-2 mb-3">
+                                <li><strong>1. Direct Tags:</strong> We look for specific community tags on the map (e.g., <code>diet:vegan=yes</code>). If a place is explicitly tagged, it gets top priority.</li>
+                                <li><strong>2. Cuisine Logic:</strong> If no tags are found, we filter based on cuisine. For Vegan, we prioritize naturally friendly options (Thai, Vietnamese, Lebanese) and strictly block high-risk places (Steakhouses, BBQ).</li>
                             </ul>
+                            <p className="text-xs text-gray-500 italic border-t pt-2">
+                                <em>Disclaimer: Data is community-sourced. Always verify with the restaurant via the provided Yelp/Google links or by asking a server.</em>
+                            </p>
                         </section>
 
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
@@ -396,25 +521,30 @@
                             <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
                         </div>
                         <h2 className="text-4xl font-extrabold text-black mb-2 leading-tight">{currentPick?.name}</h2>
-                        <div className="flex items-center gap-3 mb-8">
+                        
+                        <div className="flex flex-wrap gap-2 mb-6">
                              <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wide">
                                 {currentPick?.cuisine.replace(/_/g, ' ')}
                              </span>
-                             <span className="text-gray-400 text-sm">• {radius} mi radius</span>
+                             {currentPick?.badges && currentPick.badges.map(b => (
+                                 <span key={b} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold flex items-center gap-1">
+                                    <Icon name="leaf" size={12} /> {b}
+                                 </span>
+                             ))}
                         </div>
+
                         <div className="space-y-4 mt-auto">
-                            <a href={currentPick?.googleUrl} target="_blank" className="flex items-center justify-between w-full p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-                                        <Icon name="external-link" size={18} />
-                                    </div>
-                                    <div className="flex flex-col text-left">
-                                        <span className="font-bold text-sm">View Menu & Photos</span>
-                                        <span className="text-xs text-gray-500">Open Google Maps</span>
-                                    </div>
-                                </div>
-                                <Icon name="external-link" size={16} className="text-gray-400" />
-                            </a>
+                             <div className="grid grid-cols-2 gap-3">
+                                <a href={currentPick?.googleUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center">
+                                    <Icon name="search" size={24} className="text-blue-500 mb-1" />
+                                    <span className="font-bold text-sm text-gray-800">Google Maps</span>
+                                </a>
+                                <a href={currentPick?.yelpUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-red-50 transition-colors text-center">
+                                    <Icon name="star" size={24} className="text-red-500 mb-1" />
+                                    <span className="font-bold text-sm text-gray-800">Yelp Reviews</span>
+                                </a>
+                            </div>
+
                             <Button onClick={confirmPick} variant="accent" className="h-16 text-lg">
                                 Let's Go
                             </Button>
@@ -451,6 +581,7 @@
                                         <select value={r} onChange={e=>setR(e.target.value)} className="flex-1 p-4 bg-gray-50 rounded-xl font-medium outline-none appearance-none">
                                             <option value="None">No Restrictions</option>
                                             <option value="Vegetarian">Vegetarian</option>
+                                            <option value="Vegan">Vegan</option>
                                             <option value="Gluten-Free">Gluten-Free</option>
                                         </select>
                                         <button onClick={add} className="bg-black text-white w-14 rounded-xl flex items-center justify-center shadow-lg"><Icon name="plus"/></button>
