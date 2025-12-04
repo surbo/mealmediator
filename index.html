@@ -53,9 +53,13 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.3.7";
-        // v1.3.6 - Added Fairness Algorithm (Least Recently Picked) & Smart Shuffle
-        // v1.3.7 - Manual Picker Selection with Fairness Suggestions
+        const APP_VERSION = "v1.5.0";
+        // v1.3.6 - Added Fairness Algorithm
+        // v1.3.7 - Manual Picker Selection
+        // v1.4.0 - Added Blacklist Feature
+        // v1.4.1 - Swipe-to-Back Support
+        // v1.4.2 - Enhanced Sync
+        // v1.5.0 - Renamed to "AwwHellNaw List" & Added Ability to Remove Blocked Items
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -81,7 +85,8 @@
             'utensils-cross': <g><path d="m16.1 19.3-2.4-2.4"/><path d="m9.3 12.5-2.4-2.4"/><path d="M11 6.5V2a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4.5a3 3 0 0 0 2.2 2.9l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3A3 3 0 0 0 11 6.5z"/><path d="m19 14.9-2.4-2.4"/><path d="M19 6.5a3 3 0 0 0-3-3h-.5a3 3 0 0 0-3 3v4.5a3 3 0 0 0 .8 2.2l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3a3 3 0 0 0 .8-2.2V6.5z"/></g>,
             'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>,
             'arrow-down': <g><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></g>,
-            'crown': <g><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></g>
+            'crown': <g><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></g>,
+            'ban': <g><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></g>
         };
 
         const Icon = ({ name, size=24, className }) => (
@@ -128,10 +133,10 @@
             return <button onClick={onClick} disabled={disabled} className={`${base} ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>{children}</button>;
         };
 
-        const BottomNav = ({ view, setView }) => {
+        const BottomNav = ({ view, navigate }) => {
             const navItem = (v, icon, label) => (
                 <button 
-                    onClick={() => setView(v)} 
+                    onClick={() => navigate(v)} 
                     className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${view === v ? 'text-black' : 'text-gray-400'}`}
                 >
                     <Icon name={icon} size={24} strokeWidth={view === v ? 2.5 : 2} />
@@ -166,29 +171,60 @@
             const [cachedPlaces, setCachedPlaces] = useState([]);
             const [rejectedIds, setRejectedIds] = useState([]);
             const [showPickerModal, setShowPickerModal] = useState(false);
+            
+            // Blacklist State (Stores objects: {id, name})
+            const [blacklist, setBlacklist] = useState([]);
 
             // --- PULL TO REFRESH STATE ---
             const [pullY, setPullY] = useState(0);
             const [startY, setStartY] = useState(0);
             const containerRef = useRef(null);
 
-            // --- LOGIC ---
-            
-            // Scroll to top on view change
+            // --- HISTORY NAVIGATION LOGIC ---
+            useEffect(() => {
+                const handlePopState = (event) => {
+                    if (event.state && event.state.view) {
+                        setView(event.state.view);
+                    } else {
+                        setView('home');
+                    }
+                };
+                
+                // Initialize history
+                window.history.replaceState({ view: 'home' }, '');
+                window.addEventListener('popstate', handlePopState);
+                
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, []);
+
+            const navigate = (newView) => {
+                if (view === newView) return;
+                window.history.pushState({ view: newView }, '');
+                setView(newView);
+                window.scrollTo(0, 0);
+            };
+
+            const goBack = () => {
+                window.history.back();
+            };
+
+            // --- APP INIT LOGIC ---
             useEffect(() => {
                 window.scrollTo(0, 0);
             }, [view]);
 
             useEffect(() => {
-                // IMPORTANT: Keeping v2 keys to ensure settings are preserved across updates
                 const localMem = localStorage.getItem('dinner_members_v2');
                 const localHist = localStorage.getItem('dinner_history_v2');
+                const localBlacklist = localStorage.getItem('dinner_blacklist_v2');
+                
                 if (localMem) {
                     const parsed = JSON.parse(localMem);
                     setMembers(parsed);
                     setActiveMembers(parsed.map(m => m.id));
                 }
                 if (localHist) setHistory(JSON.parse(localHist));
+                if (localBlacklist) setBlacklist(JSON.parse(localBlacklist));
 
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -200,6 +236,7 @@
 
             useEffect(() => { localStorage.setItem('dinner_members_v2', JSON.stringify(members)); }, [members]);
             useEffect(() => { localStorage.setItem('dinner_history_v2', JSON.stringify(history)); }, [history]);
+            useEffect(() => { localStorage.setItem('dinner_blacklist_v2', JSON.stringify(blacklist)); }, [blacklist]);
 
             // --- PULL TO REFRESH LOGIC ---
             const handleTouchStart = (e) => {
@@ -247,6 +284,21 @@
                 }
             };
 
+            const blockRestaurant = () => {
+                if (!currentPick) return;
+                if (confirm(`Add "${currentPick.name}" to the AwwHellNaw List? It won't show up again.`)) {
+                    // Store ID and Name for management
+                    setBlacklist([...blacklist, { id: currentPick.id, name: currentPick.name }]);
+                    handleShuffle(); // Immediately get a new pick
+                }
+            };
+
+            const removeBlock = (index) => {
+                const newList = [...blacklist];
+                newList.splice(index, 1);
+                setBlacklist(newList);
+            };
+
             const fetchRestaurants = async () => {
                 if (!userLocation) return;
                 setLoading(true);
@@ -289,15 +341,27 @@
             };
 
             const pickWinner = (list, currentRejects = []) => {
-                // Filter out already rejected items
-                let pool = list.filter(p => !currentRejects.includes(p.id));
+                // Extract IDs from blacklist (handles both string and object formats for safety)
+                const blockedIds = blacklist.map(b => typeof b === 'string' ? b : b.id);
+
+                // Filter out already rejected items AND blacklisted items
+                let pool = list.filter(p => !currentRejects.includes(p.id) && !blockedIds.includes(p.id));
                 
                 // If we've seen everything, clear the rejects and start over (loop)
+                // Note: We do NOT clear blacklist, only the "skip for this session" list
                 if (pool.length === 0) {
-                    pool = list;
+                    // Try refreshing from original list minus blacklist
+                    pool = list.filter(p => !blockedIds.includes(p.id));
                     setRejectedIds([]);
                     // Reset currentRejects locally for this run
                     currentRejects = []; 
+                }
+                
+                // If still empty (everything is blacklisted), warn user
+                if (pool.length === 0) {
+                    setError("All nearby places are on your AwwHellNaw List! Try clearing it or expanding range.");
+                    setLoading(false);
+                    return;
                 }
 
                 const activeProfiles = members.filter(m => activeMembers.includes(m.id));
@@ -354,7 +418,7 @@
                 }
 
                 // Safety fallback if filters remove everything
-                if (pool.length === 0) pool = list.filter(p => !currentRejects.includes(p.id));
+                if (pool.length === 0) pool = list.filter(p => !currentRejects.includes(p.id) && !blockedIds.includes(p.id));
                 if (pool.length === 0) pool = list; // Total fallback
                 
                 const winner = pool[Math.floor(Math.random() * pool.length)];
@@ -376,11 +440,11 @@
 
                 setCurrentPick({ ...winner, googleUrl, yelpUrl, badges });
                 setLoading(false);
-                setView('result');
+                navigate('result');
             };
 
             const handleExport = async () => {
-                const d = btoa(JSON.stringify({members, history}));
+                const d = btoa(JSON.stringify({members, history, blacklist}));
                 if (navigator.share) {
                     try {
                         await navigator.share({ title: 'Meal Mediator Data', text: d });
@@ -403,6 +467,7 @@
                         const j = JSON.parse(atob(d));
                         setMembers(j.members || []);
                         setHistory(j.history || []);
+                        if (j.blacklist) setBlacklist(j.blacklist); 
                         alert("Synced!");
                         window.location.reload(); 
                     } catch(e) { alert("Invalid code."); }
@@ -417,23 +482,18 @@
                     .filter(m => activeMembers.includes(m.id))
                     .map(m => m.name);
 
-                // Map of name -> index in history (lower index = more recent)
                 const lastPickedMap = {};
-                // Initialize with Infinity (never picked)
                 activeMemberNames.forEach(name => lastPickedMap[name] = Infinity);
 
-                // Find most recent pick for each person
                 history.forEach((entry, index) => {
                     if (activeMemberNames.includes(entry.picker) && lastPickedMap[entry.picker] === Infinity) {
                         lastPickedMap[entry.picker] = index;
                     }
                 });
 
-                // Sort descending (Largest index / Infinity first)
                 activeMemberNames.sort((a, b) => {
                     const scoreA = lastPickedMap[a];
                     const scoreB = lastPickedMap[b];
-                    // If tie, random break
                     if (scoreA === scoreB) return 0.5 - Math.random();
                     return scoreB - scoreA;
                 });
@@ -444,7 +504,7 @@
             const confirmPicker = (pickerName) => {
                  setHistory([{ id: Date.now(), name: currentPick.name, date: new Date().toLocaleDateString(), picker: pickerName }, ...history]);
                  setShowPickerModal(false);
-                 setView('history');
+                 navigate('history');
             };
 
             // --- VIEWS ---
@@ -461,7 +521,7 @@
                                 <Logo />
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => setView('help')} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:bg-gray-800 shadow-md"><Icon name="help" size={18}/></button>
+                                <button onClick={() => navigate('help')} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:bg-gray-800 shadow-md"><Icon name="help" size={18}/></button>
                                 <button onClick={handleExport} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 text-black"><Icon name="share" size={18}/></button>
                                 <button onClick={handleImport} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 text-black"><Icon name="download" size={18}/></button>
                             </div>
@@ -502,11 +562,11 @@
                         <div className="mb-8" style={{transform: pullY > 0 ? `translateY(${pullY * 0.3}px)` : 'none', transition: 'transform 0.1s'}}>
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold">Who's Hungry?</h2>
-                                <button onClick={() => setView('setup')} className="text-[#06C167] text-sm font-semibold">Edit</button>
+                                <button onClick={() => navigate('setup')} className="text-[#06C167] text-sm font-semibold">Edit</button>
                             </div>
                             <div className="flex gap-2 overflow-x-auto hide-scroll pb-2">
                                 {members.length === 0 && (
-                                    <button onClick={() => setView('setup')} className="flex-shrink-0 px-4 py-8 bg-white border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 text-sm font-medium flex flex-col items-center gap-2 w-32">
+                                    <button onClick={() => navigate('setup')} className="flex-shrink-0 px-4 py-8 bg-white border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 text-sm font-medium flex flex-col items-center gap-2 w-32">
                                         <Icon name="plus" /> Add Person
                                     </button>
                                 )}
@@ -545,7 +605,7 @@
                             {APP_VERSION}
                         </div>
                     </div>
-                    <BottomNav view={view} setView={setView} />
+                    <BottomNav view={view} navigate={navigate} />
                 </div>
             );
 
@@ -553,7 +613,7 @@
                 <div className="h-full flex flex-col bg-[#f6f6f6]">
                     <div className="p-6 bg-white sticky top-0 z-10 shadow-sm flex justify-between items-center">
                          <h2 className="text-2xl font-bold">Help & Info</h2>
-                         <button onClick={() => setView('home')} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="x" size={16}/></button>
+                         <button onClick={goBack} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="x" size={16}/></button>
                     </div>
                     <div className="p-6 overflow-y-auto pb-24 space-y-6">
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
@@ -564,6 +624,7 @@
                                 <li>Adjust the <strong>Distance</strong> slider to how far you want to drive.</li>
                                 <li>Tap <strong>Start Searching</strong>. The app will find restaurants that match everyone's needs.</li>
                                 <li>Don't like the choice? Tap <strong>Shuffle</strong> to get a new one! We won't show the same place twice until you've seen them all.</li>
+                                <li><strong>Hate a place?</strong> Click "Add to AwwHellNaw List" on the result screen to blacklist it forever.</li>
                                 <li><strong>Refresh:</strong> Pull down on the home screen to refresh the app and clear any glitches.</li>
                             </ol>
                         </section>
@@ -585,7 +646,7 @@
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="share" size={18} className="text-[#06C167]"/> Syncing Data</h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
-                                To share your setup with another phone, click the <strong>Share</strong> icon on the Home screen to copy your data code. Send this code to family members, and they can use the <strong>Download</strong> icon to import it.
+                                To share your setup with another phone, click the <strong>Share</strong> icon on the Home screen to copy your data code. Send this code to family members, and they can use the <strong>Download</strong> icon to import it. <strong>Note:</strong> Your AwwHellNaw List is included in the sync.
                             </p>
                         </section>
 
@@ -594,7 +655,7 @@
                             <p className="text-xs text-gray-400 mt-1">{APP_VERSION}</p>
                         </div>
                     </div>
-                    <BottomNav view={view} setView={setView} />
+                    <BottomNav view={view} navigate={navigate} />
                 </div>
             );
 
@@ -604,7 +665,7 @@
                 return (
                     <div className="min-h-screen bg-white flex flex-col animate-slide-up relative z-50 pb-10">
                         <div className="h-48 food-pattern w-full relative shrink-0">
-                            <button onClick={() => setView('home')} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
+                            <button onClick={goBack} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
                                 <Icon name="x" size={20} />
                             </button>
                             <div className="absolute -bottom-10 left-6 w-20 h-20 bg-white rounded-2xl shadow-lg flex items-center justify-center z-10">
@@ -646,6 +707,13 @@
                                 <Button onClick={handleShuffle} variant="secondary">
                                     <Icon name="refresh" size={18} /> Shuffle
                                 </Button>
+                                
+                                <button 
+                                    onClick={blockRestaurant} 
+                                    className="w-full py-2 flex items-center justify-center gap-2 text-red-400 text-xs font-bold hover:text-red-600 transition-colors mt-2"
+                                >
+                                    <Icon name="ban" size={14} /> Add to AwwHellNaw List
+                                </button>
                             </div>
                         </div>
 
@@ -700,9 +768,12 @@
                 };
                 return (
                     <div className="h-full flex flex-col bg-[#f6f6f6]">
-                        <div className="p-6 bg-white sticky top-0 z-10 shadow-sm">
-                            <h2 className="text-2xl font-bold">Family & Diets</h2>
-                            <p className="text-gray-500 text-sm">Manage who eats and what they avoid.</p>
+                        <div className="p-6 bg-white sticky top-0 z-10 shadow-sm flex items-center gap-3">
+                            <button onClick={goBack} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="arrow-left" size={16}/></button>
+                            <div>
+                                <h2 className="text-2xl font-bold">Family & Diets</h2>
+                                <p className="text-gray-500 text-sm">Manage who eats and what they avoid.</p>
+                            </div>
                         </div>
                         <div className="p-6 flex-1 overflow-y-auto pb-24">
                             <div className="bg-white p-5 rounded-2xl shadow-sm mb-6">
@@ -721,7 +792,7 @@
                                 </div>
                             </div>
                             <label className="block text-xs font-bold text-gray-400 uppercase mb-3 px-2">Current Members</label>
-                            <div className="space-y-3">
+                            <div className="space-y-3 mb-8">
                                 {members.map(m => (
                                     <div key={m.id} className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
                                         <div className="flex items-center gap-3">
@@ -735,18 +806,44 @@
                                     </div>
                                 ))}
                             </div>
+
+                            <div className="mt-8 pt-6 border-t border-gray-200">
+                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-500">
+                                    <Icon name="ban" size={20} /> AwwHellNaw List
+                                </h3>
+                                {blacklist.length === 0 && <p className="text-sm text-gray-400 italic text-center py-4">No places blocked yet.</p>}
+                                <div className="space-y-2">
+                                    {blacklist.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-red-50">
+                                            <span className="font-medium text-sm text-gray-700 truncate flex-1 pr-2">
+                                                {typeof item === 'object' ? item.name : 'Unknown Place (Legacy)'}
+                                            </span>
+                                            <button 
+                                                onClick={() => removeBlock(idx)} 
+                                                className="text-xs font-bold text-red-400 hover:text-red-600 px-3 py-1 bg-red-50 rounded-full"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="text-center mt-10 text-xs text-gray-300 font-medium">{APP_VERSION}</div>
                         </div>
-                        <BottomNav view={view} setView={setView} />
+                        <BottomNav view={view} navigate={navigate} />
                     </div>
                 );
             };
 
             const HistoryView = () => (
                 <div className="h-full flex flex-col bg-[#f6f6f6]">
-                    <div className="p-6 bg-white sticky top-0 z-10 shadow-sm">
-                        <h2 className="text-2xl font-bold">Past Orders</h2>
-                        <p className="text-gray-500 text-sm">Where you've been.</p>
+                    <div className="p-6 bg-white sticky top-0 z-10 shadow-sm flex items-center gap-3">
+                        <button onClick={goBack} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="arrow-left" size={16}/></button>
+                        <div>
+                            <h2 className="text-2xl font-bold">Past Orders</h2>
+                            <p className="text-gray-500 text-sm">Where you've been.</p>
+                        </div>
                     </div>
                     <div className="p-6 flex-1 overflow-y-auto pb-24 space-y-4">
                         {history.length === 0 && <div className="text-center text-gray-400 mt-10">No history yet.</div>}
@@ -764,7 +861,7 @@
                         ))}
                          <div className="text-center mt-10 text-xs text-gray-300 font-medium">{APP_VERSION}</div>
                     </div>
-                    <BottomNav view={view} setView={setView} />
+                    <BottomNav view={view} navigate={navigate} />
                 </div>
             );
 
