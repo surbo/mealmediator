@@ -53,11 +53,12 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.7.1";
+        const APP_VERSION = "v1.7.2";
         // v1.6.0 - Added Love/Favorites feature, moved Block button to header area
         // v1.6.1 - Added Location Services instructions to Help
         // v1.7.0 - Added First-Time Load Help Screen & Data Privacy Section
         // v1.7.1 - Updated Privacy Text (Zero Knowledge)
+        // v1.7.2 - Added App Description to Help File header
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -647,6 +648,13 @@
                          <button onClick={goBack} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="x" size={16}/></button>
                     </div>
                     <div className="p-6 overflow-y-auto pb-24 space-y-6">
+                        <section className="bg-white p-5 rounded-2xl shadow-sm">
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="home" size={18} className="text-[#06C167]"/> What is Meal Mediator?</h3>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Meal Mediator solves the "What's for dinner?" argument. It finds restaurants that match <strong>everyone's</strong> dietary needs (like Vegan or Gluten-Free) and ensures fair turn-taking so everyone gets a say. It runs entirely on your phone with no servers tracking you.
+                            </p>
+                        </section>
+
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="search" size={18} className="text-[#06C167]"/> How to Use</h3>
                             <ol className="list-decimal pl-4 text-sm text-gray-600 space-y-3 marker:text-[#06C167] marker:font-bold">
