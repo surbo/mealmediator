@@ -53,13 +53,9 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.3.5";
-        // v1.3.0 - Instructions Update, Removed Shake
-        // v1.3.1 - Added Pull-to-Refresh (Custom)
-        // v1.3.2 - Fixed Result View Scrolling
-        // v1.3.3 - Reduced Result Header Height
-        // v1.3.4 - Enabled Native Scrolling (Fixes Pull-to-Refresh feel)
-        // v1.3.5 - Moved Result buttons up (reduced whitespace)
+        const APP_VERSION = "v1.3.7";
+        // v1.3.6 - Added Fairness Algorithm (Least Recently Picked) & Smart Shuffle
+        // v1.3.7 - Manual Picker Selection with Fairness Suggestions
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -84,7 +80,8 @@
             'star': <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
             'utensils-cross': <g><path d="m16.1 19.3-2.4-2.4"/><path d="m9.3 12.5-2.4-2.4"/><path d="M11 6.5V2a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v4.5a3 3 0 0 0 2.2 2.9l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3A3 3 0 0 0 11 6.5z"/><path d="m19 14.9-2.4-2.4"/><path d="M19 6.5a3 3 0 0 0-3-3h-.5a3 3 0 0 0-3 3v4.5a3 3 0 0 0 .8 2.2l-1.3 1.3a3 3 0 0 0 0 4.2l3.2 3.2a3 3 0 0 0 4.2 0l1.3-1.3a3 3 0 0 0 .8-2.2V6.5z"/></g>,
             'handshake': <g><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-1.42-1.42l.88-.88a5 5 0 0 1 7.07 0l3.88 3.88a3 3 0 0 1 0 4.24l-2.5 2.5a3 3 0 0 1-4.24 0l-2-2"/><path d="m14 14-1.5-1.5"/></g>,
-            'arrow-down': <g><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></g>
+            'arrow-down': <g><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></g>,
+            'crown': <g><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></g>
         };
 
         const Icon = ({ name, size=24, className }) => (
@@ -164,6 +161,11 @@
             const [loading, setLoading] = useState(false);
             const [statusMsg, setStatusMsg] = useState("");
             const [error, setError] = useState(null);
+            
+            // New State for Shuffle & Caching
+            const [cachedPlaces, setCachedPlaces] = useState([]);
+            const [rejectedIds, setRejectedIds] = useState([]);
+            const [showPickerModal, setShowPickerModal] = useState(false);
 
             // --- PULL TO REFRESH STATE ---
             const [pullY, setPullY] = useState(0);
@@ -224,6 +226,27 @@
                 setStartY(0);
             };
 
+            // Initiate a fresh search (clears rejected list)
+            const startSearch = () => {
+                setRejectedIds([]);
+                setCachedPlaces([]);
+                fetchRestaurants();
+            };
+
+            // Handle Shuffle button (keeps cache, adds to rejected)
+            const handleShuffle = () => {
+                if (currentPick) {
+                    // Add current pick to rejected list so it doesn't show again immediately
+                    const newRejects = [...rejectedIds, currentPick.id];
+                    setRejectedIds(newRejects);
+                    
+                    // We pass the newRejects directly to ensure the immediate next pick considers it
+                    pickWinner(cachedPlaces, newRejects);
+                } else {
+                    pickWinner(cachedPlaces, rejectedIds);
+                }
+            };
+
             const fetchRestaurants = async () => {
                 if (!userLocation) return;
                 setLoading(true);
@@ -255,15 +278,28 @@
                             lat: el.lat,
                             lon: el.lon
                         }));
-                    pickWinner(cleanList);
+                    
+                    setCachedPlaces(cleanList);
+                    // Pass empty reject list for a fresh start
+                    pickWinner(cleanList, []); 
                 } catch (err) {
                     setError("Could not connect. Check your internet.");
                     setLoading(false);
                 }
             };
 
-            const pickWinner = (list) => {
-                let pool = list;
+            const pickWinner = (list, currentRejects = []) => {
+                // Filter out already rejected items
+                let pool = list.filter(p => !currentRejects.includes(p.id));
+                
+                // If we've seen everything, clear the rejects and start over (loop)
+                if (pool.length === 0) {
+                    pool = list;
+                    setRejectedIds([]);
+                    // Reset currentRejects locally for this run
+                    currentRejects = []; 
+                }
+
                 const activeProfiles = members.filter(m => activeMembers.includes(m.id));
                 const restrictions = activeProfiles.flatMap(m => m.restrictions);
 
@@ -317,7 +353,9 @@
                     if (gfFriendly.length > 0) pool = gfFriendly;
                 }
 
-                if (pool.length === 0) pool = list; 
+                // Safety fallback if filters remove everything
+                if (pool.length === 0) pool = list.filter(p => !currentRejects.includes(p.id));
+                if (pool.length === 0) pool = list; // Total fallback
                 
                 const winner = pool[Math.floor(Math.random() * pool.length)];
                 
@@ -370,10 +408,42 @@
                     } catch(e) { alert("Invalid code."); }
                 }
             };
-            const confirmPick = () => {
-                 const pickerId = activeMembers.length > 0 ? activeMembers[Math.floor(Math.random() * activeMembers.length)] : null;
-                 const pickerName = pickerId ? members.find(m => m.id === pickerId).name : "Random";
+
+            // FAIRNESS LOGIC: Calculate fair picker name for suggestions
+            const getSuggestedPickerName = () => {
+                if (activeMembers.length === 0) return null;
+                
+                const activeMemberNames = members
+                    .filter(m => activeMembers.includes(m.id))
+                    .map(m => m.name);
+
+                // Map of name -> index in history (lower index = more recent)
+                const lastPickedMap = {};
+                // Initialize with Infinity (never picked)
+                activeMemberNames.forEach(name => lastPickedMap[name] = Infinity);
+
+                // Find most recent pick for each person
+                history.forEach((entry, index) => {
+                    if (activeMemberNames.includes(entry.picker) && lastPickedMap[entry.picker] === Infinity) {
+                        lastPickedMap[entry.picker] = index;
+                    }
+                });
+
+                // Sort descending (Largest index / Infinity first)
+                activeMemberNames.sort((a, b) => {
+                    const scoreA = lastPickedMap[a];
+                    const scoreB = lastPickedMap[b];
+                    // If tie, random break
+                    if (scoreA === scoreB) return 0.5 - Math.random();
+                    return scoreB - scoreA;
+                });
+
+                return activeMemberNames[0];
+            };
+
+            const confirmPicker = (pickerName) => {
                  setHistory([{ id: Date.now(), name: currentPick.name, date: new Date().toLocaleDateString(), picker: pickerName }, ...history]);
+                 setShowPickerModal(false);
                  setView('history');
             };
 
@@ -465,7 +535,7 @@
                                  </div>
                                  <h3 className="text-2xl font-bold mb-2 relative z-10">Find Food</h3>
                                  <p className="opacity-90 text-sm mb-6 relative z-10 max-w-[200px]">We'll scan nearby restaurants and pick the best one for everyone.</p>
-                                 <Button onClick={fetchRestaurants} disabled={loading} variant="white" className="relative z-10">
+                                 <Button onClick={startSearch} disabled={loading} variant="white" className="relative z-10">
                                     {loading ? statusMsg : "Start Searching"}
                                  </Button>
                             </div>
@@ -493,7 +563,7 @@
                                 <li>On the <strong>Home</strong> screen, tap the people who are eating to select them (they turn black).</li>
                                 <li>Adjust the <strong>Distance</strong> slider to how far you want to drive.</li>
                                 <li>Tap <strong>Start Searching</strong>. The app will find restaurants that match everyone's needs.</li>
-                                <li>Don't like the choice? Tap <strong>Shuffle</strong> to get a new one!</li>
+                                <li>Don't like the choice? Tap <strong>Shuffle</strong> to get a new one! We won't show the same place twice until you've seen them all.</li>
                                 <li><strong>Refresh:</strong> Pull down on the home screen to refresh the app and clear any glitches.</li>
                             </ol>
                         </section>
@@ -528,55 +598,95 @@
                 </div>
             );
 
-            const ResultView = () => (
-                <div className="min-h-screen bg-white flex flex-col animate-slide-up relative z-50 pb-10">
-                    <div className="h-48 food-pattern w-full relative shrink-0">
-                        <button onClick={() => setView('home')} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
-                            <Icon name="x" size={20} />
-                        </button>
-                        <div className="absolute -bottom-10 left-6 w-20 h-20 bg-white rounded-2xl shadow-lg flex items-center justify-center z-10">
-                            <span className="text-4xl">🍽️</span>
-                        </div>
-                    </div>
-                    <div className="flex-1 px-6 pt-14 pb-6 flex flex-col overflow-y-auto">
-                        <div className="mb-1">
-                            <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
-                        </div>
-                        <h2 className="text-4xl font-extrabold text-black mb-2 leading-tight">{currentPick?.name}</h2>
-                        
-                        <div className="flex flex-wrap gap-2 mb-6">
-                             <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wide">
-                                {currentPick?.cuisine.replace(/_/g, ' ')}
-                             </span>
-                             {currentPick?.badges && currentPick.badges.map(b => (
-                                 <span key={b} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold flex items-center gap-1">
-                                    <Icon name="leaf" size={12} /> {b}
-                                 </span>
-                             ))}
-                        </div>
+            const ResultView = () => {
+                const suggestedPicker = getSuggestedPickerName();
 
-                        <div className="space-y-4 mt-6">
-                             <div className="grid grid-cols-2 gap-3">
-                                <a href={currentPick?.googleUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center">
-                                    <Icon name="search" size={24} className="text-blue-500 mb-1" />
-                                    <span className="font-bold text-sm text-gray-800">Google Maps</span>
-                                </a>
-                                <a href={currentPick?.yelpUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-red-50 transition-colors text-center">
-                                    <Icon name="star" size={24} className="text-red-500 mb-1" />
-                                    <span className="font-bold text-sm text-gray-800">Yelp Reviews</span>
-                                </a>
+                return (
+                    <div className="min-h-screen bg-white flex flex-col animate-slide-up relative z-50 pb-10">
+                        <div className="h-48 food-pattern w-full relative shrink-0">
+                            <button onClick={() => setView('home')} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
+                                <Icon name="x" size={20} />
+                            </button>
+                            <div className="absolute -bottom-10 left-6 w-20 h-20 bg-white rounded-2xl shadow-lg flex items-center justify-center z-10">
+                                <span className="text-4xl">🍽️</span>
+                            </div>
+                        </div>
+                        <div className="flex-1 px-6 pt-14 pb-6 flex flex-col overflow-y-auto">
+                            <div className="mb-1">
+                                <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
+                            </div>
+                            <h2 className="text-4xl font-extrabold text-black mb-2 leading-tight">{currentPick?.name}</h2>
+                            
+                            <div className="flex flex-wrap gap-2 mb-6">
+                                <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wide">
+                                    {currentPick?.cuisine.replace(/_/g, ' ')}
+                                </span>
+                                {currentPick?.badges && currentPick.badges.map(b => (
+                                    <span key={b} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold flex items-center gap-1">
+                                        <Icon name="leaf" size={12} /> {b}
+                                    </span>
+                                ))}
                             </div>
 
-                            <Button onClick={confirmPick} variant="accent" className="h-16 text-lg">
-                                Let's Go
-                            </Button>
-                            <Button onClick={fetchRestaurants} variant="secondary">
-                                <Icon name="refresh" size={18} /> Shuffle
-                            </Button>
+                            <div className="space-y-4 mt-6">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <a href={currentPick?.googleUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-center">
+                                        <Icon name="search" size={24} className="text-blue-500 mb-1" />
+                                        <span className="font-bold text-sm text-gray-800">Google Maps</span>
+                                    </a>
+                                    <a href={currentPick?.yelpUrl} target="_blank" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-red-50 transition-colors text-center">
+                                        <Icon name="star" size={24} className="text-red-500 mb-1" />
+                                        <span className="font-bold text-sm text-gray-800">Yelp Reviews</span>
+                                    </a>
+                                </div>
+
+                                <Button onClick={() => setShowPickerModal(true)} variant="accent" className="h-16 text-lg">
+                                    Let's Go
+                                </Button>
+                                <Button onClick={handleShuffle} variant="secondary">
+                                    <Icon name="refresh" size={18} /> Shuffle
+                                </Button>
+                            </div>
                         </div>
+
+                        {showPickerModal && (
+                            <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                                <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-pop">
+                                    <h3 className="text-xl font-bold mb-1 text-center">Who picked this?</h3>
+                                    <p className="text-xs text-gray-400 text-center mb-4">Track your history fairly.</p>
+                                    
+                                    <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                                        {members.filter(m => activeMembers.includes(m.id)).map(m => {
+                                            const isSuggested = m.name === suggestedPicker;
+                                            return (
+                                                <button 
+                                                    key={m.id}
+                                                    onClick={() => confirmPicker(m.name)}
+                                                    className={`p-4 rounded-xl font-bold flex flex-col items-center gap-1 transition-all border-2 ${isSuggested ? 'bg-green-50 border-green-500 text-green-700' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}
+                                                >
+                                                    {isSuggested && (
+                                                        <div className="text-[10px] uppercase font-bold bg-green-200 text-green-800 px-2 py-0.5 rounded-full mb-1 flex items-center gap-1">
+                                                            <Icon name="crown" size={10} /> Suggested
+                                                        </div>
+                                                    )}
+                                                    <span>{m.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                        <button 
+                                            onClick={() => confirmPicker("Guest")}
+                                            className="p-4 bg-gray-50 border-2 border-transparent rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                        >
+                                            Guest
+                                        </button>
+                                    </div>
+                                    <button onClick={() => setShowPickerModal(false)} className="mt-6 w-full py-3 text-gray-400 font-bold hover:text-gray-600">Cancel</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            );
+                );
+            };
 
             const SetupView = () => {
                 const [n, setN] = useState("");
