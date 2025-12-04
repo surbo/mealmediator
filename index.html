@@ -53,9 +53,11 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.3.1";
+        const APP_VERSION = "v1.3.3";
         // v1.3.0 - Instructions Update, Removed Shake
         // v1.3.1 - Added Pull-to-Refresh, Fixed Button Contrast, Persistent Settings Check
+        // v1.3.2 - Fixed Result View Scrolling
+        // v1.3.3 - Reduced Result Header Height
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -520,7 +522,8 @@
 
             const ResultView = () => (
                 <div className="h-full bg-white flex flex-col animate-slide-up relative z-50">
-                    <div className="h-1/3 food-pattern w-full relative">
+                    {/* Changed h-1/3 to h-48 (fixed height) to save space */}
+                    <div className="h-48 food-pattern w-full relative shrink-0">
                         <button onClick={() => setView('home')} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
                             <Icon name="x" size={20} />
                         </button>
@@ -528,7 +531,7 @@
                             <span className="text-4xl">🍽️</span>
                         </div>
                     </div>
-                    <div className="flex-1 px-6 pt-14 pb-6 flex flex-col">
+                    <div className="flex-1 px-6 pt-14 pb-6 flex flex-col overflow-y-auto">
                         <div className="mb-1">
                             <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
                         </div>
