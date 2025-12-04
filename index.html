@@ -19,7 +19,6 @@
             user-select: none; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             background-color: #f6f6f6;
-            overscroll-behavior-y: contain; /* Prevents native pull-to-refresh to use our custom one */
         }
         .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-pop { animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
@@ -47,17 +46,18 @@
         }
     </style>
 </head>
-<body class="text-slate-900 h-screen overflow-hidden">
+<body class="text-slate-900 bg-[#f6f6f6]">
 
-    <div id="root" class="h-full w-full"></div>
+    <div id="root" class="w-full"></div>
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.3.3";
+        const APP_VERSION = "v1.3.4";
         // v1.3.0 - Instructions Update, Removed Shake
-        // v1.3.1 - Added Pull-to-Refresh, Fixed Button Contrast, Persistent Settings Check
+        // v1.3.1 - Added Pull-to-Refresh (Custom)
         // v1.3.2 - Fixed Result View Scrolling
         // v1.3.3 - Reduced Result Header Height
+        // v1.3.4 - Enabled Native Scrolling (Fixes Pull-to-Refresh feel)
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -163,12 +163,13 @@
             const [statusMsg, setStatusMsg] = useState("");
             const [error, setError] = useState(null);
 
-            // --- PULL TO REFRESH STATE ---
-            const [pullY, setPullY] = useState(0);
-            const [startY, setStartY] = useState(0);
-            const containerRef = useRef(null);
-
             // --- LOGIC ---
+            
+            // Scroll to top on view change
+            useEffect(() => {
+                window.scrollTo(0, 0);
+            }, [view]);
+
             useEffect(() => {
                 // IMPORTANT: Keeping v2 keys to ensure settings are preserved across updates
                 const localMem = localStorage.getItem('dinner_members_v2');
@@ -190,31 +191,6 @@
 
             useEffect(() => { localStorage.setItem('dinner_members_v2', JSON.stringify(members)); }, [members]);
             useEffect(() => { localStorage.setItem('dinner_history_v2', JSON.stringify(history)); }, [history]);
-
-            // --- PULL TO REFRESH LOGIC ---
-            const handleTouchStart = (e) => {
-                if (containerRef.current && containerRef.current.scrollTop === 0) {
-                    setStartY(e.touches[0].clientY);
-                }
-            };
-
-            const handleTouchMove = (e) => {
-                if (startY === 0) return;
-                const currentY = e.touches[0].clientY;
-                const diff = currentY - startY;
-                
-                if (diff > 0 && diff < 200) {
-                    setPullY(diff);
-                }
-            };
-
-            const handleTouchEnd = () => {
-                if (pullY > 100) {
-                    window.location.reload(); // Hard refresh
-                }
-                setPullY(0);
-                setStartY(0);
-            };
 
             const fetchRestaurants = async () => {
                 if (!userLocation) return;
@@ -372,8 +348,8 @@
             // --- VIEWS ---
 
             const HomeView = () => (
-                <div className="flex flex-col h-full bg-[#f6f6f6]">
-                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-10 shadow-sm">
+                <div className="min-h-screen bg-[#f6f6f6] pb-32">
+                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-20 shadow-sm">
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <div className="flex items-center gap-1 text-[#06C167] font-medium text-xs uppercase tracking-wide mb-1">
@@ -403,25 +379,10 @@
                         </div>
                     </div>
 
-                    <div 
-                        ref={containerRef}
-                        className="flex-1 overflow-y-auto px-6 py-6 pb-32 relative"
-                        onTouchStart={handleTouchStart}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                    >
-                        {/* Refresh Indicator */}
-                        {pullY > 0 && (
-                            <div className="flex justify-center items-center h-10 w-full absolute top-0 left-0 transition-transform" style={{transform: `translateY(${pullY * 0.4}px)`}}>
-                                <div className="bg-white rounded-full p-2 shadow-lg">
-                                    <Icon name="refresh" className={`text-[#06C167] ${pullY > 100 ? 'animate-spin' : ''}`} />
-                                </div>
-                            </div>
-                        )}
-
+                    <div className="px-6 py-6">
                         {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium mb-6 text-center">{error}</div>}
 
-                        <div className="mb-8" style={{transform: pullY > 0 ? `translateY(${pullY * 0.3}px)` : 'none', transition: 'transform 0.1s'}}>
+                        <div className="mb-8">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold">Who's Hungry?</h2>
                                 <button onClick={() => setView('setup')} className="text-[#06C167] text-sm font-semibold">Edit</button>
@@ -451,7 +412,7 @@
                         </div>
 
                         {activeMembers.length > 0 && (
-                            <div className="animate-pop bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden" style={{transform: pullY > 0 ? `translateY(${pullY * 0.3}px)` : 'none'}}>
+                            <div className="animate-pop bg-[#06C167] rounded-3xl p-6 text-white shadow-xl shadow-green-500/20 relative overflow-hidden">
                                  <div className="absolute top-0 right-0 opacity-10 transform translate-x-4 -translate-y-4">
                                     <Icon name="search" size={120} />
                                  </div>
@@ -472,12 +433,12 @@
             );
 
             const HelpView = () => (
-                <div className="h-full flex flex-col bg-[#f6f6f6]">
-                    <div className="p-6 bg-white sticky top-0 z-10 shadow-sm flex justify-between items-center">
+                <div className="min-h-screen bg-[#f6f6f6] pb-32">
+                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-20 shadow-sm flex justify-between items-center">
                          <h2 className="text-2xl font-bold">Help & Info</h2>
                          <button onClick={() => setView('home')} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="x" size={16}/></button>
                     </div>
-                    <div className="p-6 overflow-y-auto pb-24 space-y-6">
+                    <div className="px-6 py-6 space-y-6">
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="search" size={18} className="text-[#06C167]"/> How to Use</h3>
                             <ol className="list-decimal pl-4 text-sm text-gray-600 space-y-3 marker:text-[#06C167] marker:font-bold">
@@ -521,8 +482,7 @@
             );
 
             const ResultView = () => (
-                <div className="h-full bg-white flex flex-col animate-slide-up relative z-50">
-                    {/* Changed h-1/3 to h-48 (fixed height) to save space */}
+                <div className="min-h-screen bg-white flex flex-col animate-slide-up relative z-50 pb-10">
                     <div className="h-48 food-pattern w-full relative shrink-0">
                         <button onClick={() => setView('home')} className="absolute top-6 right-6 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center z-20">
                             <Icon name="x" size={20} />
@@ -531,7 +491,7 @@
                             <span className="text-4xl">🍽️</span>
                         </div>
                     </div>
-                    <div className="flex-1 px-6 pt-14 pb-6 flex flex-col overflow-y-auto">
+                    <div className="flex-1 px-6 pt-14 pb-6 flex flex-col">
                         <div className="mb-1">
                             <span className="text-[#06C167] font-bold tracking-wide uppercase text-xs">Best Match</span>
                         </div>
@@ -582,12 +542,12 @@
                     setN("");
                 };
                 return (
-                    <div className="h-full flex flex-col bg-[#f6f6f6]">
-                        <div className="p-6 bg-white sticky top-0 z-10 shadow-sm">
+                    <div className="min-h-screen bg-[#f6f6f6] pb-32">
+                        <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-20 shadow-sm">
                             <h2 className="text-2xl font-bold">Family & Diets</h2>
                             <p className="text-gray-500 text-sm">Manage who eats and what they avoid.</p>
                         </div>
-                        <div className="p-6 flex-1 overflow-y-auto pb-24">
+                        <div className="px-6 py-6">
                             <div className="bg-white p-5 rounded-2xl shadow-sm mb-6">
                                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Add New Profile</label>
                                 <div className="space-y-3">
@@ -626,12 +586,12 @@
             };
 
             const HistoryView = () => (
-                <div className="h-full flex flex-col bg-[#f6f6f6]">
-                    <div className="p-6 bg-white sticky top-0 z-10 shadow-sm">
+                <div className="min-h-screen bg-[#f6f6f6] pb-32">
+                    <div className="bg-white px-6 pt-6 pb-2 sticky top-0 z-20 shadow-sm">
                         <h2 className="text-2xl font-bold">Past Orders</h2>
                         <p className="text-gray-500 text-sm">Where you've been.</p>
                     </div>
-                    <div className="p-6 flex-1 overflow-y-auto pb-24 space-y-4">
+                    <div className="px-6 py-6 space-y-4">
                         {history.length === 0 && <div className="text-center text-gray-400 mt-10">No history yet.</div>}
                         {history.map(h => (
                             <div key={h.id} className="bg-white p-5 rounded-2xl shadow-sm flex flex-col gap-2">
@@ -652,7 +612,7 @@
             );
 
             return (
-                <div className="max-w-lg mx-auto h-full bg-[#f6f6f6] relative shadow-2xl overflow-hidden">
+                <div className="max-w-lg mx-auto min-h-screen bg-[#f6f6f6] shadow-2xl relative">
                     {view === 'home' && <HomeView />}
                     {view === 'result' && <ResultView />}
                     {view === 'setup' && <SetupView />}
