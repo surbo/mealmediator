@@ -53,13 +53,11 @@
 
     <script type="text/babel">
         // --- CONFIGURATION ---
-        const APP_VERSION = "v1.6.1";
-        // v1.4.0 - Added Blacklist Feature
-        // v1.4.1 - Swipe-to-Back Support
-        // v1.4.2 - Enhanced Sync
-        // v1.5.0 - Renamed to "AwwHellNaw List" & Added Ability to Remove Blocked Items
+        const APP_VERSION = "v1.7.1";
         // v1.6.0 - Added Love/Favorites feature, moved Block button to header area
         // v1.6.1 - Added Location Services instructions to Help
+        // v1.7.0 - Added First-Time Load Help Screen & Data Privacy Section
+        // v1.7.1 - Updated Privacy Text (Zero Knowledge)
         const LOGO_URL = "https://surbo.github.io/mealmediator/mm.png"; 
 
         // --- ICONS ---
@@ -229,6 +227,13 @@
                 if (localHist) setHistory(JSON.parse(localHist));
                 if (localBlacklist) setBlacklist(JSON.parse(localBlacklist));
                 if (localLoveList) setLoveList(JSON.parse(localLoveList));
+
+                // First Time Visit Check
+                const hasVisited = localStorage.getItem('dinner_has_visited');
+                if (!hasVisited) {
+                    navigate('help'); // Navigate to help on first load
+                    localStorage.setItem('dinner_has_visited', 'true');
+                }
 
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -669,7 +674,7 @@
                         </section>
 
                         <section className="bg-white p-5 rounded-2xl shadow-sm">
-                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="shield" size={18} className="text-[#06C167]"/> Smart Dietary Filters</h3>
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="leaf" size={18} className="text-[#06C167]"/> Smart Dietary Filters</h3>
                             <p className="text-sm text-gray-600 leading-relaxed mb-3">
                                 <strong>How we find matches:</strong> We use the <strong>OpenStreetMap</strong> database to analyze restaurants in real-time. Our algorithm uses a two-layer system to match diets like Vegan or Gluten-Free:
                             </p>
@@ -679,6 +684,13 @@
                             </ul>
                             <p className="text-xs text-gray-500 italic border-t pt-2">
                                 <em>Disclaimer: Data is community-sourced. Always verify with the restaurant via the provided Yelp/Google links or by asking a server.</em>
+                            </p>
+                        </section>
+
+                        <section className="bg-white p-5 rounded-2xl shadow-sm">
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Icon name="shield" size={18} className="text-[#06C167]"/> Data Privacy (Zero Knowledge)</h3>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                <strong>Your data is yours.</strong> All family members, preferences, and history are stored 100% locally in your browser's Local Storage. We do not have a database, we do not have a server, and we cannot see your data. It never leaves your phone unless you explicitly use the "Share" feature and send your data to someone else via Text or Email.
                             </p>
                         </section>
 
